@@ -168,8 +168,10 @@ public class NetworkStatusPlugin extends CobaltAbstractPlugin implements Network
 	}
 
 	private void stopStatusMonitoring() {
-		networkChangeReceiver.remove();
-		networkChangeReceiver = null;
+		if (networkChangeReceiver != null) {
+			networkChangeReceiver.remove();
+			networkChangeReceiver = null;
+		}
 	}
 
 	private String getState(Context context)
