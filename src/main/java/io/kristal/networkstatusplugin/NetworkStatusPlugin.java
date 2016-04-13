@@ -31,17 +31,12 @@ public class NetworkStatusPlugin extends CobaltAbstractPlugin implements Network
 
 	private static final String JSPluginName = "networkStatus";
 
-	private static final String JSActionQueryState = "getState";
-	private static final String JSActionQueryType = "getType";
+	private static final String JSActionQueryStatus = "getStatus";
 	private static final String JSActionStartStatusMonitoring = "startStatusMonitoring";
 	private static final String JSActionStopStatusMonitoring = "stopStatusMonitoring";
 	private static final String JSActionOnNetworkChanged = "onStatusChanged";
 
-	private static final String kJSState = "state";
-	private static final String kJSType = "type";
-
-	private static final String STATE_DISCONNECTED = "disconnected";
-	private static final String STATE_CONNECTED = "connected";
+	private static final String kJSStatus = "status";
 
 	private static final String TYPE_WIFI = "wifi";
 	private static final String TYPE_MOBILE = "mobile";
@@ -52,14 +47,11 @@ public class NetworkStatusPlugin extends CobaltAbstractPlugin implements Network
 	private static final String TYPE_NONE = "none";
 
 	private NetworkChangeReceiver networkChangeReceiver;
-
 	private WeakReference<CobaltFragment> mFragment;
-
 
 	private static NetworkStatusPlugin sInstance;
 
-	public static CobaltAbstractPlugin getInstance(CobaltPluginWebContainer webContainer)
-	{
+	public static CobaltAbstractPlugin getInstance(CobaltPluginWebContainer webContainer) {
 		if (sInstance == null)
 			sInstance = new NetworkStatusPlugin();
 
@@ -69,22 +61,16 @@ public class NetworkStatusPlugin extends CobaltAbstractPlugin implements Network
 	}
 
 	@Override
-	public void onMessage(CobaltPluginWebContainer webContainer, JSONObject message)
-	{
+	public void onMessage(CobaltPluginWebContainer webContainer, JSONObject message) {
 		try {
 			String action = message.getString(Cobalt.kJSAction);
 			Context context = webContainer.getActivity();
 
 			mFragment = new WeakReference<>(webContainer.getFragment());
 
-			switch (action)
-			{
-				case JSActionQueryState:
-					sendStateCallback(webContainer, message.getString(Cobalt.kJSCallback), getState(context));
-					break;
-
-				case JSActionQueryType:
-					sendTypeCallback(webContainer, message.getString(Cobalt.kJSCallback), getType(context));
+			switch (action) {
+				case JSActionQueryStatus:
+					sendStatusCallback(webContainer, message.getString(Cobalt.kJSCallback), getStatus(context));
 					break;
 
 				case JSActionStartStatusMonitoring:
@@ -115,10 +101,10 @@ public class NetworkStatusPlugin extends CobaltAbstractPlugin implements Network
 	 *
 	 **********************************************************************************************/
 
-	private void sendCallback(CobaltPluginWebContainer webContainer, String callback, String key, String value) {
+	private void sendStatusCallback(CobaltPluginWebContainer webContainer, String callback, String status) {
 		try {
 			JSONObject data = new JSONObject();
-			data.put(key, value);
+			data.put(kJSStatus, status);
 			webContainer.getFragment().sendCallback(callback, data);
 		}
 		catch (JSONException exception) {
@@ -126,22 +112,12 @@ public class NetworkStatusPlugin extends CobaltAbstractPlugin implements Network
 		}
 	}
 
-	private void sendStateCallback(CobaltPluginWebContainer webContainer, String callback, String status) {
-		sendCallback(webContainer, callback, kJSState, status);
-	}
-
-	private void sendTypeCallback(CobaltPluginWebContainer webContainer, String callback, String type) {
-		sendCallback(webContainer, callback, kJSType, type);
-	}
-
-	private void sendStatusChangedCallback(String state, String type)
-	{
+	private void sendStatusChangedCallback(String status) {
 		CobaltFragment fragment = mFragment.get();
 		if (fragment != null) {
 			try {
 				JSONObject data = new JSONObject();
-				data.put(kJSState, state);
-				data.put(kJSType, type);
+				data.put(kJSStatus, status);
 
 				JSONObject message = new JSONObject();
 				message.put(Cobalt.kJSType, Cobalt.JSTypePlugin);
@@ -174,28 +150,7 @@ public class NetworkStatusPlugin extends CobaltAbstractPlugin implements Network
 		}
 	}
 
-	private String getState(Context context)
-	{
-		if (!checkNetworkStatePermission(context)) {
-			if (Cobalt.DEBUG)
-				Log.d(TAG, "Cannot get network state: permission ACCESS_NETWORK_STATE denied");
-
-			return STATE_DISCONNECTED;
-		}
-
-		ConnectivityManager cm = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
-
-		NetworkInfo info = cm.getActiveNetworkInfo();
-
-		if (info != null &&
-				(info.getState() == NetworkInfo.State.CONNECTED || info.getState() == NetworkInfo.State.CONNECTING))
-			return STATE_CONNECTED;
-		else
-			return STATE_DISCONNECTED;
-	}
-
-	private String getType(Context context)
-	{
+	private String getStatus(Context context) {
 		if (!checkNetworkStatePermission(context)) {
 			if (Cobalt.DEBUG)
 				Log.d(TAG, "Cannot get network type: permission ACCESS_NETWORK_STATE denied");
@@ -204,7 +159,6 @@ public class NetworkStatusPlugin extends CobaltAbstractPlugin implements Network
 		}
 
 		ConnectivityManager cm = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
-
 		NetworkInfo info = cm.getActiveNetworkInfo();
 
 		if (info != null) {
@@ -242,7 +196,7 @@ public class NetworkStatusPlugin extends CobaltAbstractPlugin implements Network
 
 	@Override
 	public void onNetworkChange(Context context) {
-		sendStatusChangedCallback(getState(context), getType(context));
+		sendStatusChangedCallback(getStatus(context));
 	}
 
 	/***********************************************************************************************
@@ -251,8 +205,7 @@ public class NetworkStatusPlugin extends CobaltAbstractPlugin implements Network
 	 *
 	 **********************************************************************************************/
 
-	private boolean checkPermission(Context context, String permission)
-	{
+	private boolean checkPermission(Context context, String permission) {
 		return ActivityCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED;
 	}
 
