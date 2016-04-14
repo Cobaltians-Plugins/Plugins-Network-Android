@@ -2,6 +2,7 @@ package io.kristal.networkstatusplugin;
 
 
 import android.Manifest;
+import android.app.Activity;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.net.ConnectivityManager;
@@ -17,6 +18,9 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 
 public class NetworkStatusPlugin extends CobaltAbstractPlugin implements NetworkChangeReceiver.NetworkChangeListener
 {
@@ -47,7 +51,7 @@ public class NetworkStatusPlugin extends CobaltAbstractPlugin implements Network
 	private static final String TYPE_NONE = "none";
 
 	private NetworkChangeReceiver networkChangeReceiver;
-	private WeakReference<CobaltFragment> mFragment;
+	private List<WeakReference<CobaltFragment>> listeningFragments;
 
 	private static NetworkStatusPlugin sInstance;
 
@@ -60,25 +64,26 @@ public class NetworkStatusPlugin extends CobaltAbstractPlugin implements Network
 		return sInstance;
 	}
 
+	public NetworkStatusPlugin() {
+		listeningFragments = new ArrayList<>();
+	}
+
 	@Override
 	public void onMessage(CobaltPluginWebContainer webContainer, JSONObject message) {
 		try {
 			String action = message.getString(Cobalt.kJSAction);
-			Context context = webContainer.getActivity();
-
-			mFragment = new WeakReference<>(webContainer.getFragment());
 
 			switch (action) {
 				case JSActionQueryStatus:
-					sendStatusCallback(webContainer, message.getString(Cobalt.kJSCallback), getStatus(context));
+					sendStatusCallback(webContainer, message.getString(Cobalt.kJSCallback), getStatus(webContainer));
 					break;
 
 				case JSActionStartStatusMonitoring:
-					startStatusMonitoring(context);
+					startStatusMonitoring(webContainer);
 					break;
 
 				case JSActionStopStatusMonitoring:
-					stopStatusMonitoring();
+					stopStatusMonitoring(webContainer);
 					break;
 
 				default:
@@ -102,19 +107,22 @@ public class NetworkStatusPlugin extends CobaltAbstractPlugin implements Network
 	 **********************************************************************************************/
 
 	private void sendStatusCallback(CobaltPluginWebContainer webContainer, String callback, String status) {
-		try {
-			JSONObject data = new JSONObject();
-			data.put(kJSStatus, status);
-			webContainer.getFragment().sendCallback(callback, data);
-		}
-		catch (JSONException exception) {
-			exception.printStackTrace();
+		CobaltFragment fragment = webContainer.getFragment();
+
+		if  (fragment != null) {
+			try {
+				JSONObject data = new JSONObject();
+				data.put(kJSStatus, status);
+				fragment.sendCallback(callback, data);
+			}
+			catch (JSONException exception) {
+				exception.printStackTrace();
+			}
 		}
 	}
 
 	private void sendStatusChangedCallback(String status) {
-		CobaltFragment fragment = mFragment.get();
-		if (fragment != null) {
+		if (listeningFragments.size() > 0) {
 			try {
 				JSONObject data = new JSONObject();
 				data.put(kJSStatus, status);
@@ -124,7 +132,15 @@ public class NetworkStatusPlugin extends CobaltAbstractPlugin implements Network
 				message.put(Cobalt.kJSPluginName, JSPluginName);
 				message.put(Cobalt.kJSAction, JSActionOnNetworkChanged);
 				message.put(Cobalt.kJSData, data);
-				fragment.sendMessage(message);
+
+				for (Iterator<WeakReference<CobaltFragment>> iterator = listeningFragments.iterator(); iterator.hasNext(); ) {
+					WeakReference<CobaltFragment> fragmentReference = iterator.next();
+
+					if (fragmentReference.get() == null)
+						iterator.remove();
+					else
+						fragmentReference.get().sendMessage(message);
+				}
 			}
 			catch (JSONException exception) {
 				exception.printStackTrace();
@@ -132,22 +148,52 @@ public class NetworkStatusPlugin extends CobaltAbstractPlugin implements Network
 		}
 	}
 
-	private void startStatusMonitoring(Context context) {
-		if (checkNetworkChangePermission(context)) {
-			if (networkChangeReceiver != null)
-				stopStatusMonitoring();
+	private void startStatusMonitoring(CobaltPluginWebContainer webContainer) {
+		CobaltFragment fragment = webContainer.getFragment();
 
-			networkChangeReceiver = new NetworkChangeReceiver(context, this);
+		if (Cobalt.DEBUG)
+			Log.d(TAG, "Fragment " + fragment + " started listening network changes");
+
+		if (fragment != null && !containsReference(listeningFragments, fragment)) {
+			listeningFragments.add(new WeakReference<>(fragment));
+
+			if (networkChangeReceiver == null) {
+				Context context = fragment.getActivity().getApplicationContext();
+
+				if (checkNetworkChangePermission(context)) {
+					networkChangeReceiver = new NetworkChangeReceiver(context, this);
+
+					if (Cobalt.DEBUG)
+						Log.d(TAG, "One fragment is listening ; starting NetworkChangeReceiver");
+				}
+				else if (Cobalt.DEBUG)
+					Log.d(TAG, "Cannot start network monitoring: permission CHANGE_NETWORK_STATE denied");
+			}
 		}
-		else if (Cobalt.DEBUG)
-			Log.d(TAG, "Cannot start network monitoring: permission CHANGE_NETWORK_STATE denied");
 	}
 
-	private void stopStatusMonitoring() {
-		if (networkChangeReceiver != null) {
+	private void stopStatusMonitoring(CobaltPluginWebContainer webContainer) {
+		removeReference(listeningFragments, webContainer.getFragment());
+
+		if (Cobalt.DEBUG)
+			Log.d(TAG, "Fragment " + webContainer.getFragment() + " stopped listening network status changes");
+
+		if (listeningFragments.size() <= 0) {
 			networkChangeReceiver.remove();
 			networkChangeReceiver = null;
+
+			if (Cobalt.DEBUG)
+				Log.d(TAG, "No fragment listening ; shutting down NetworkChangeReceiver");
 		}
+	}
+
+	private String getStatus(CobaltPluginWebContainer webContainer) {
+		Activity activity = webContainer.getActivity();
+
+		if (activity != null)
+			return getStatus(activity.getApplicationContext());
+		else
+			return TYPE_UNKNOWN;
 	}
 
 	private String getStatus(Context context) {
@@ -155,7 +201,7 @@ public class NetworkStatusPlugin extends CobaltAbstractPlugin implements Network
 			if (Cobalt.DEBUG)
 				Log.d(TAG, "Cannot get network type: permission ACCESS_NETWORK_STATE denied");
 
-			return TYPE_NONE;
+			return TYPE_UNKNOWN;
 		}
 
 		ConnectivityManager cm = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
@@ -215,5 +261,38 @@ public class NetworkStatusPlugin extends CobaltAbstractPlugin implements Network
 
 	private boolean checkNetworkChangePermission(Context context) {
 		return checkPermission(context, Manifest.permission.CHANGE_NETWORK_STATE);
+	}
+
+	/***********************************************************************************************
+	 *
+	 * HELPERS
+	 *
+	 **********************************************************************************************/
+
+	private static <T> boolean containsReference(List<WeakReference<T>> list, T reference) {
+		for (Iterator<WeakReference<T>> iterator = list.iterator(); iterator.hasNext(); ) {
+			WeakReference<T> ref = iterator.next();
+
+			if (ref.get() == reference) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private static <T> int removeReference(List<WeakReference<T>> list, T reference) {
+		int removed = 0;
+
+		for (Iterator<WeakReference<T>> iterator = list.iterator(); iterator.hasNext(); ) {
+			WeakReference<T> ref = iterator.next();
+
+			if (ref.get() == reference) {
+				iterator.remove();
+				removed++;
+			}
+		}
+
+		return removed;
 	}
 }
