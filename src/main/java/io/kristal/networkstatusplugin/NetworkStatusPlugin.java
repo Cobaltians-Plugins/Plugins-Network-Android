@@ -167,7 +167,7 @@ public class NetworkStatusPlugin extends CobaltAbstractPlugin implements Network
 						Log.d(TAG, "One fragment is listening ; starting NetworkChangeReceiver");
 				}
 				else if (Cobalt.DEBUG)
-					Log.d(TAG, "Cannot start network monitoring: permission CHANGE_NETWORK_STATE denied");
+					Log.d(TAG, "Cannot start network monitoring: please make sure your AndroidManifest contains the CHANGE_NETWORK_STATE permission");
 			}
 		}
 	}
@@ -179,8 +179,10 @@ public class NetworkStatusPlugin extends CobaltAbstractPlugin implements Network
 			Log.d(TAG, "Fragment " + webContainer.getFragment() + " stopped listening network status changes");
 
 		if (listeningFragments.size() <= 0) {
-			networkChangeReceiver.remove();
-			networkChangeReceiver = null;
+			if (networkChangeReceiver != null) {
+				networkChangeReceiver.remove();
+				networkChangeReceiver = null;
+			}
 
 			if (Cobalt.DEBUG)
 				Log.d(TAG, "No fragment listening ; shutting down NetworkChangeReceiver");
@@ -199,7 +201,7 @@ public class NetworkStatusPlugin extends CobaltAbstractPlugin implements Network
 	private String getStatus(Context context) {
 		if (!checkNetworkStatePermission(context)) {
 			if (Cobalt.DEBUG)
-				Log.d(TAG, "Cannot get network type: permission ACCESS_NETWORK_STATE denied");
+				Log.d(TAG, "Cannot get network status: please make sure your AndroidManifest contains the ACCESS_NETWORK_STATE permission");
 
 			return TYPE_UNKNOWN;
 		}
