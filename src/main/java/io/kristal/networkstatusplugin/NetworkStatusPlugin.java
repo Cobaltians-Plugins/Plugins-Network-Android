@@ -44,9 +44,6 @@ public class NetworkStatusPlugin extends CobaltAbstractPlugin implements Network
 
 	private static final String TYPE_WIFI = "wifi";
 	private static final String TYPE_MOBILE = "mobile";
-	private static final String TYPE_ETHERNET = "ethernet";
-	private static final String TYPE_VPN = "vpn";
-	private static final String TYPE_BLUETOOTH = "bluetooth";
 	private static final String TYPE_UNKNOWN = "unknown";
 	private static final String TYPE_NONE = "none";
 
@@ -213,25 +210,18 @@ public class NetworkStatusPlugin extends CobaltAbstractPlugin implements Network
 			switch (info.getType())
 			{
 				case ConnectivityManager.TYPE_WIFI:
+				case ConnectivityManager.TYPE_ETHERNET:
+				case ConnectivityManager.TYPE_VPN:
 					return TYPE_WIFI;
 
 				case ConnectivityManager.TYPE_MOBILE:
-					return TYPE_MOBILE;
-
-				case ConnectivityManager.TYPE_BLUETOOTH:
-					return TYPE_BLUETOOTH;
-
-				case ConnectivityManager.TYPE_ETHERNET:
-					return TYPE_ETHERNET;
-
 				case ConnectivityManager.TYPE_WIMAX:
-					return TYPE_MOBILE;
-
 				case ConnectivityManager.TYPE_MOBILE_DUN:
 					return TYPE_MOBILE;
 
-				case ConnectivityManager.TYPE_VPN:
-					return TYPE_VPN;
+				case ConnectivityManager.TYPE_BLUETOOTH:
+				case ConnectivityManager.TYPE_DUMMY:
+					return TYPE_NONE;
 
 				default:
 					return TYPE_UNKNOWN;
