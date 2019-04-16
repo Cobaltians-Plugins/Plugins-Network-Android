@@ -33,8 +33,6 @@ public class NetworkStatusPlugin extends CobaltAbstractPlugin implements Network
 	 *
 	 **********************************************************************************************/
 
-	private static final String JSPluginName = "networkStatus";
-
 	private static final String JSActionQueryStatus = "getStatus";
 	private static final String JSActionStartStatusMonitoring = "startStatusMonitoring";
 	private static final String JSActionStopStatusMonitoring = "stopStatusMonitoring";
@@ -51,6 +49,7 @@ public class NetworkStatusPlugin extends CobaltAbstractPlugin implements Network
 	private List<WeakReference<CobaltFragment>> listeningFragments;
 
 	private static NetworkStatusPlugin sInstance;
+	private String mPluginName;
 
 	public static CobaltAbstractPlugin getInstance(CobaltPluginWebContainer webContainer) {
 		if (sInstance == null)
@@ -69,10 +68,11 @@ public class NetworkStatusPlugin extends CobaltAbstractPlugin implements Network
 	public void onMessage(CobaltPluginWebContainer webContainer, JSONObject message) {
 		try {
 			String action = message.getString(Cobalt.kJSAction);
+			mPluginName = message.getString(Cobalt.kJSPluginName);
 
 			switch (action) {
 				case JSActionQueryStatus:
-					sendStatusCallback(webContainer, message.getString(Cobalt.kJSCallback), getStatus(webContainer));
+					sendStatusCallback(webContainer, getStatus(webContainer));
 					break;
 
 				case JSActionStartStatusMonitoring:
@@ -103,14 +103,15 @@ public class NetworkStatusPlugin extends CobaltAbstractPlugin implements Network
 	 *
 	 **********************************************************************************************/
 
-	private void sendStatusCallback(CobaltPluginWebContainer webContainer, String callback, String status) {
+	private void sendStatusCallback(CobaltPluginWebContainer webContainer, String status) {
 		CobaltFragment fragment = webContainer.getFragment();
 
 		if  (fragment != null) {
 			try {
 				JSONObject data = new JSONObject();
 				data.put(kJSStatus, status);
-				fragment.sendCallback(callback, data);
+				data.put(Cobalt.kJSAction, "onStatusChanged");
+				fragment.sendPlugin(mPluginName, data);
 			}
 			catch (JSONException exception) {
 				exception.printStackTrace();
@@ -123,11 +124,11 @@ public class NetworkStatusPlugin extends CobaltAbstractPlugin implements Network
 			try {
 				JSONObject data = new JSONObject();
 				data.put(kJSStatus, status);
+				data.put(Cobalt.kJSAction, JSActionOnNetworkChanged);
 
 				JSONObject message = new JSONObject();
 				message.put(Cobalt.kJSType, Cobalt.JSTypePlugin);
-				message.put(Cobalt.kJSPluginName, JSPluginName);
-				message.put(Cobalt.kJSAction, JSActionOnNetworkChanged);
+				message.put(Cobalt.kJSPluginName, mPluginName);
 				message.put(Cobalt.kJSData, data);
 
 				for (Iterator<WeakReference<CobaltFragment>> iterator = listeningFragments.iterator(); iterator.hasNext(); ) {
