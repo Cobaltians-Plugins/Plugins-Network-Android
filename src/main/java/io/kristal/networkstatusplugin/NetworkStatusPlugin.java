@@ -7,6 +7,8 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.support.v4.app.ActivityCompat;
 import android.util.Log;
 
@@ -49,51 +51,40 @@ public class NetworkStatusPlugin extends CobaltAbstractPlugin implements Network
 	private List<WeakReference<CobaltFragment>> listeningFragments;
 
 	private static NetworkStatusPlugin sInstance;
-	private String mPluginName;
 
-	public static CobaltAbstractPlugin getInstance(CobaltPluginWebContainer webContainer) {
+	public static CobaltAbstractPlugin getInstance()
+	{
 		if (sInstance == null)
+		{
 			sInstance = new NetworkStatusPlugin();
-
-		sInstance.addWebContainer(webContainer);
-
+		}
 		return sInstance;
 	}
 
 	public NetworkStatusPlugin() {
 		listeningFragments = new ArrayList<>();
 	}
-
+	
 	@Override
-	public void onMessage(CobaltPluginWebContainer webContainer, JSONObject message) {
-		try {
-			String action = message.getString(Cobalt.kJSAction);
-			mPluginName = message.getString(Cobalt.kJSPluginName);
-
-			switch (action) {
-				case JSActionQueryStatus:
-					sendStatusCallback(webContainer, getStatus(webContainer));
-					break;
-
-				case JSActionStartStatusMonitoring:
-					startStatusMonitoring(webContainer);
-					break;
-
-				case JSActionStopStatusMonitoring:
-					stopStatusMonitoring(webContainer);
-					break;
-
-				default:
-					if (Cobalt.DEBUG)
-						Log.d(TAG, "onMessage: unknown action " + action);
-					break;
-			}
-		}
-		catch (JSONException exception) {
-			if (Cobalt.DEBUG)
-				Log.d(TAG, "onMessage: action field missing or is not a string or data field is missing or is not an object");
-
-			exception.printStackTrace();
+	public void onMessage(@NonNull CobaltPluginWebContainer webContainer, @NonNull String action,
+			@Nullable JSONObject data, @Nullable String callbackChannel)
+	{
+		switch (action) {
+			case JSActionQueryStatus:
+				sendStatusCallback(webContainer, getStatus(webContainer));
+				break;
+			case JSActionStartStatusMonitoring:
+				startStatusMonitoring(webContainer);
+				break;
+			case JSActionStopStatusMonitoring:
+				stopStatusMonitoring(webContainer);
+				break;
+			default:
+				if (Cobalt.DEBUG)
+				{
+					Log.d(TAG, "onMessage: unknown action " + action);
+				}
+				break;
 		}
 	}
 
@@ -111,7 +102,8 @@ public class NetworkStatusPlugin extends CobaltAbstractPlugin implements Network
 				JSONObject data = new JSONObject();
 				data.put(kJSStatus, status);
 				data.put(Cobalt.kJSAction, "onStatusChanged");
-				fragment.sendPlugin(mPluginName, data);
+				// TODO: use PubSub with callbackChannel
+				//fragment.sendPlugin(mPluginName, data);
 			}
 			catch (JSONException exception) {
 				exception.printStackTrace();
@@ -128,7 +120,8 @@ public class NetworkStatusPlugin extends CobaltAbstractPlugin implements Network
 
 				JSONObject message = new JSONObject();
 				message.put(Cobalt.kJSType, Cobalt.JSTypePlugin);
-				message.put(Cobalt.kJSPluginName, mPluginName);
+				// TODO: name not available anymore, update implementation
+				//message.put(Cobalt.kJSPluginName, mPluginName);
 				message.put(Cobalt.kJSData, data);
 
 				for (Iterator<WeakReference<CobaltFragment>> iterator = listeningFragments.iterator(); iterator.hasNext(); ) {
