@@ -71,7 +71,7 @@ public class NetworkStatusPlugin extends CobaltAbstractPlugin implements Network
 	{
 		switch (action) {
 			case JSActionQueryStatus:
-				sendStatusCallback(webContainer, getStatus(webContainer));
+				sendStatusCallback(callbackChannel, getStatus(webContainer));
 				break;
 			case JSActionStartStatusMonitoring:
 				startStatusMonitoring(webContainer);
@@ -94,21 +94,16 @@ public class NetworkStatusPlugin extends CobaltAbstractPlugin implements Network
 	 *
 	 **********************************************************************************************/
 
-	private void sendStatusCallback(CobaltPluginWebContainer webContainer, String status) {
-		CobaltFragment fragment = webContainer.getFragment();
-
-		if  (fragment != null) {
-			try {
-				JSONObject data = new JSONObject();
-				data.put(kJSStatus, status);
-				data.put(Cobalt.kJSAction, "onStatusChanged");
-				// TODO: use PubSub with callbackChannel
-				//fragment.sendPlugin(mPluginName, data);
-			}
-			catch (JSONException exception) {
-				exception.printStackTrace();
-			}
+	private void sendStatusCallback(String callbackChannel, String status) {
+		try {
+			JSONObject data = new JSONObject();
+			data.put(kJSStatus, status);
+			Cobalt.publishMessage(data, callbackChannel);
 		}
+		catch (JSONException exception) {
+			exception.printStackTrace();
+		}
+
 	}
 
 	private void sendStatusChangedCallback(String status) {
@@ -116,12 +111,11 @@ public class NetworkStatusPlugin extends CobaltAbstractPlugin implements Network
 			try {
 				JSONObject data = new JSONObject();
 				data.put(kJSStatus, status);
-				data.put(Cobalt.kJSAction, JSActionOnNetworkChanged);
 
 				JSONObject message = new JSONObject();
+				message.put(Cobalt.kJSAction, JSActionOnNetworkChanged);
 				message.put(Cobalt.kJSType, Cobalt.JSTypePlugin);
-				// TODO: name not available anymore, update implementation
-				//message.put(Cobalt.kJSPluginName, mPluginName);
+				message.put(Cobalt.kJSPluginName, "CobaltNetworkStatusPlugin");
 				message.put(Cobalt.kJSData, data);
 
 				for (Iterator<WeakReference<CobaltFragment>> iterator = listeningFragments.iterator(); iterator.hasNext(); ) {
